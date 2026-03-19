@@ -82,9 +82,8 @@ except:
     failed.append(2)
 if verbose:
     print("Time elapsed: ", time.time()-start_time, "s")
-    
-
-    
 print("Final statistics: ", passed, " out of ", total_tests, "passed (", 100.0*passed/total_tests, "% )")
 print("Time elapsed: ", time.time()-start_time, "s")
 print("Failed tests: ", failed)
+
+
