@@ -1,0 +1,33 @@
+Faik2023: A study of the crystal structures and the phase transitions of the ordered double perovskites Sr2ScSbO6 and Ca2ScSbO6. A. Faik. D. Orobengoa, E. Iturbe-Zabalo & J.M. Igartua. J. Sol. State Chem. 192, 273-283
+
+Erikkson2006: High temperature phase transition of the magnetoelectric double perovskite Sr2NiMoO6 by neutron diffraction. A.K. Eriksson,S.-G. Eriksson, S.A. Ivanov, C.S. Knee, J. Eriksen, H. Rundlöf, M. Tseggai. Materials Research Bulletin 41 (2006) 144–157
+
+Kennedy2006: Structures and phase transitions in the ordered double perovskites Ba2BiIIIBiVO6 and Ba2BiIIISbVO6.Brendan J. Kennedy, Christopher J. Howard ,Kevin S. Knight, Zhaoming Zhang & Qingdi Zhou. Acta Cryst B. (2006) 62, 537–546
+
+Faik2010: A study of the crystal structures and the phase transitions of Sr2FeSbO6, SrCaFeSbO6 and Ca2FeSbO6 double perovskite oxides. A. Faik, J.M. Igartua, E. Iturbe-Zabaloa & G.J. Cuello. J. Mol. Struct. 963 (2010) 145-152
+
+Orayech2015: Synthesis, structural, magnetic and phasetransition studies of the ferromagnetic La2CoMnO6 double perovskite by symmetry-adapted modes. B. Orayech, I. Urcelay-Olabarria, A. López, O. Fabelo, A. Faik and J. M. Igartua. Dalton Trans., 2015, 44, 13867
+
+Gateshki2003: Gateshki, Milen; Igartua, Josu M . (2003). Second-order structural phase transition in Sr2CuWO6 double-perovskite oxide. Journal of Physics: Condensed Matter, 15(40), 6749–6757. doi:10.1088/0953-8984/15/40/012 
+
+Zhou2013: Qingdi Zhou, Brendan J. Kennedy, Maxim Avdeev. (2013). Crystal structures and phase transitions in Sr2InTaO6 perovskite. , 40(8), 603–610. doi:10.1007/s00269-012-0545-5 
+
+Wallace2013: A variable temperature synchrotron X-ray diffraction study of the ferroelastic double perovskite Ba2GdMoO6. Thomas K. Wallace , Ross H. Colman and Abbie C. Mclaughlin  Phys. Chem. Chem. Phys., 2013, 15, 8672-8677
+
+Faik2009: Crystal structures and phase transitions of Sr2CrSbO6
+Author links open overlay panel A. Faik, J.M. Igartua, M. Gateshki, G.J. Cuello. J. Sol. State Chem. 182-7 (2009), 171-1725
+
+Varios: revisa tus descargasº
+
+
+
+Para después:
+Octahedral tilting dominated phase transition in compressed double perovskite Ba2SmBiO6 (Wang 2021)
+
+Pressure-induced phase transition and octahedral tilt system change of Ba2BiSbO6 (Lufaso 2006)
+
+Pressure-Induced Structural and Electronic Transition in Sr2ZnWO6
+Double Perovskite (Li 2016)
+
+Pressure induced octahedral tilting distortion in Ba2YTaO6 (Lufaso 2005)
+
