@@ -1,0 +1,8 @@
+# T(K) V(AA3) GM4+(AA) group
+440 249.41 0.3980 87
+410 249.10 0.4124 87
+410 249.10 ...
+#It was not possible to calculate further amplitudes 
+#Setting I2/m is non-standard for space group 12, and it was not possible to find
+#a suitable transformation matrix between the high and low symmetry phases.
+# As a result, it was not possible to run AMPLIMODES
