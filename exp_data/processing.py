@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 #Compounds included in the analysis for which data was obtained from graphs
 names_graphs=["Ba2Bi2O6","Ba2BiSbO6","La2CoMnO6","Sr2CrSbO6",
@@ -28,10 +29,10 @@ for i in names_graphs:
         print("Check whether the directory exists and verify naming conventions")
     
     dirname=("../")
-    
+os.chdir("..") 
 #Define useful functions to merge observations
 #merge_epsilon: used to calculate cell volume by merging a, b, and c observations
-def merge_epsilon (arr,tolerance=3,max_cycles=5):
+def merge_epsilon (arr,tolerance=3,max_cycles=5,warn=True):
     "Merge data from multiple entries, eliminating inconsistent entries."
     "arr is an array of nx2 numpy arrays which share a common parameter (like temperature)"
     "and that the observations correspond to a consistent value of the common parameter (within tolerance)"
@@ -44,7 +45,7 @@ def merge_epsilon (arr,tolerance=3,max_cycles=5):
             length=min(length, len(i))
             #If one of the arrays has a different length, trigger flag
             flag=True
-    if flag:
+    if flag and warn:
         print("Warning: Arrays have inconsistent length. This may result in loss of data")
     result=np.zeros((length,len(arr)+1)) #result matrix has one line per observation and one column per variable
     indices=np.zeros((len(arr)),dtype=int) #index of current element on each array
@@ -147,19 +148,21 @@ for i in range(0,len(breakpoints_epsilon)):
             current_phase.append(alldata[i][1][breakpoints_epsilon[i][j][k]:breakpoints_epsilon[i][j][k+1]])
         # print(merge_epsilon(current_phase))
         data_epsilon.append(merge_epsilon(current_phase))
-#print(data_epsilon)
+
+print("Applying manual correction for 'lost data' warnings... ")
 #manual processing of mising data
 #Ba2Bi2O6, T = 120
-data_epsilon[0][11] = merge_epsilon([alldata[0][1][11,None], alldata[0][1][50,None], alldata[0][1][92,None] ],tolerance=5)[0]
+data_epsilon[0][11] = merge_epsilon([alldata[0][1][11,None], alldata[0][1][50,None], alldata[0][1][92,None] ],tolerance=5,warn=False)[0]
 #Ba2Bi2O6, 225 < T < 372
-data_epsilon[0][21:29] = merge_epsilon([alldata[0][1][21:29], alldata[0][1][61:70], alldata[0][1][103:112]],tolerance=5)
+data_epsilon[0][21:29] = merge_epsilon([alldata[0][1][21:29], alldata[0][1][61:70], alldata[0][1][103:112]],tolerance=5,warn=False)
 #Ba2Bi2O6, 415 < T < 450
-data_epsilon[0][-4:] = merge_epsilon([alldata[0][1][33:37], alldata[0][1][74:78], alldata[0][1][116:120]],tolerance=5)
+data_epsilon[0][-4:] = merge_epsilon([alldata[0][1][33:37], alldata[0][1][74:78], alldata[0][1][116:120]],tolerance=5,warn=False)
 #Ba2BiSbO6, T = 225
-data_epsilon[2][-3] = merge_epsilon([alldata[1][1][17,None], alldata[1][1][36,None], alldata[1][1][55,None]],tolerance=5)
+data_epsilon[2][-3] = merge_epsilon([alldata[1][1][17,None], alldata[1][1][36,None], alldata[1][1][55,None]],tolerance=5,warn=False)
 #Ba2BiSbO6, 440 < T < 490 
-data_epsilon[3][-5:] =  merge_epsilon([alldata[1][1][89:95], alldata[1][1][120:125]])
+data_epsilon[3][-5:] =  merge_epsilon([alldata[1][1][89:95], alldata[1][1][120:125]],warn=False)
 #Check that no missing data (all zeros) remain
+
 flag=True
 for i in range(0, len(data_epsilon)):
     if np.all(((data_epsilon[i])==0),axis=-1).any():
@@ -270,4 +273,94 @@ current_vol[:,1] = np.hstack([v1,v2,v3,v4])/2
 volumes.append(current_vol)
 
 #TODO: processing of order parameters
+def merge(qp,qm,v,tolerance=10):
+    "merge volumetric and order parameter data. into as few observations as possible"
+    "The output are two arrays: the first one contains merged data, while the second contains unmerged data"
+    "This function assumes that all arrays are ordered from low to high temperature"
+    merged=[]
+    other =[[],[],[]]
+    #Current element in each array. 
+    indices =[0,0,0]
+    #pad the array with (inf,inf) to avoid accessing out-of range memory
+    #This looks weird but it makes sense given that indices only go forward if the temperature is either right or too low
+    #also, using for i in [qp,qm,v] does not work because it affects only the copies of these arrays inside the list used for indexing
+    qp = np.vstack([qp,np.array([[np.inf,np.inf]])])
+    qm = np.vstack([qm,np.array([[np.inf,np.inf]])])
+    v = np.vstack([v,np.array([[np.inf,np.inf]])])
+    for i in range(0,len(v)+len(qp)+len(qm)): #Worst-case scenario: all data is disjoint
+        #This approach does not assume that V is the largest dataset (even though it usually is) and can handle observations of order parameters without 
+        #an associated volume observation
+        with np.errstate(invalid='ignore'): #ignore warnings caused by reaching end of list (infinity technically does not support '-')
+            dt1 = np.abs(qp[indices[0],0]- v[indices[2],0])
+            dt2 = np.abs(qm[indices[1],0]- v[indices[2],0])
+        if (dt1 < tolerance and dt2 < tolerance):
+            #if consistent observation is found, record it in merged array
+            merged.append([(qp[indices[0],0] +qm[indices[1],0] + v[indices[2],0])/3, v[indices[2],1], qp[indices[0],1], qm[indices[1],1]])
+            #go to next element of all arrays
+            indices[0] = min(indices[0]+1, len(qp)-1)
+            indices[1] = min(indices[1]+1, len(qm)-1)
+            indices[2] = min(indices[2]+1, len(v)-1)
+        elif dt1 < tolerance:
+            #if only 1 of the order parameters has an entry, assume that the other is 0
+            merged.append([(qp[indices[0],0] + v[indices[2],0])/2,   v[indices[2],1], qp[indices[0],1], 0])
+            indices[0] = min(indices[0]+1, len(qp)-1)
+            indices[2] = min(indices[2]+1, len(v)-1)
+        elif dt2 < tolerance:
+            merged.append([(qm[indices[1],0] + v[indices[2],0])/2, v[indices[2],1],0, qm[indices[1],1],  ])
+            indices[1] = min(indices[1]+1, len(qm)-1)
+            indices[2] = min(indices[2]+1, len(v)-1)
+        else:
+            #if both observations are out of tolerance, check if the temperatures are lower than expected, and add to unmerged if they are
+            if qp[indices[0],0] < v[indices[2],0]:
+                other[0].append(qp[indices[0]])
+                indices[0] = min(indices[0]+1, len(qp)-1)
+            elif qm[indices[1],0] < v[indices[2],0]:
+                other[1].append(qm[indices[1]])
+                indices[1] = min(indices[1]+1, len(qm)-1)
+            else:
+                #Alternatively, it is possible that one volume observation was missing
+                other[2].append(v[indices[2]])
+                indices[2] = min(indices[2]+1, len(v)-1)
+    
+    return [np.array(merged), other]
 
+# Convert degree to AA
+alldata[0][0][:,1] = np.sin(alldata[0][0][:,1]*np.pi/180)*2.14 
+alldata[1][0][:,1] = np.sin(alldata[1][0][:,1]*np.pi/180)*2.145
+alldata[3][0][:,1] = np.sin(alldata[3][0][:,1]*np.pi/180)*1.99
+alldata[4][0][:,1] = np.sin(alldata[4][0][:,1]*np.pi/180)*2.11
+alldata[6][0][:,1] = np.sin(alldata[6][0][:,1]*np.pi/180)*1.96
+
+breakpoints_q =[50,None,55,None,None,28,None,None]
+
+
+alldata[3][0]=alldata[3][0][::-1] #Sr2CrSbO6 is ordered from low to high temperature
+alldata[4][0][:,0] +=273.15 #Sr2CuWO6 has T in celsius
+alldata[5][0][:,0] +=273.15 #Sr2InTaO6 has T in celsius
+for i in range(0,len(breakpoints_q)):
+    if breakpoints_q[i] is None:
+        result=merge(np.array([[0,0]]),alldata[i][0][::-1],volumes[i])
+    else:
+        result = merge(alldata[i][0][:breakpoints_q[i]:-1], alldata[i][0][breakpoints_q[i]::-1],volumes[i])
+    dirname = "../processed/" + names_graphs[i]
+    Path(dirname).mkdir(parents=True, exist_ok=True)
+    fname=dirname+"/"+names_graphs[i]
+    np.savetxt(fname+"-merged.txt", result[0],fmt='%4.6f', header="T(K) V(AA^3) q1(AA) q2(AA)")
+    print("Writing processed data in directory", dirname)
+    np.savetxt(fname+"-unmerged_T.txt", np.array(result[1][2])[np.where(np.array(result[1][2])[:,0] != np.inf)],fmt='%2.6f', header="T(K) V(AA^3)")
+    #3 data sources have more than one unmerged observation
+    if len(np.array(result[1][1])!=0):
+        np.savetxt(fname+"-unmerged_q.txt", np.array(result[1][1])[np.where(np.array(result[1][1])[:,0] != np.inf)],fmt='%2.6f', header="T(K) q(AA)")
+data_table = np.genfromtxt("./"+names_tables[0]+"/"+names_tables[0]+".csv",delimiter=" ") #not a real csv :/
+data_table[:,1] = data_table[:,1]*data_table[:,2] *data_table[:,3]/2
+data_table[[0,1],1] *= 0.5
+data_table[:,2] = np.sin(data_table[:,4]*np.pi/180)* 2.119
+data_table[:,3] = np.sin(data_table[:,5]*np.pi/180)* 2.119
+dirname = "../processed/" + names_tables[0]
+Path(dirname).mkdir(parents=True, exist_ok=True)
+print("Writing processed data in directory", dirname)
+fname=dirname+"/"+names_tables[0]
+np.savetxt(fname+"-merged.txt", result[0],fmt='%4.6f', header="T(K) V(AA^3) q1(AA) q2(AA)")
+print("All data processed successfully")
+    
+    
