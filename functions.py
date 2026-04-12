@@ -1,6 +1,5 @@
 import numpy as np
-import matplotlib.pyplot as plt
- 
+
 def FreeEnergy(params,variables,couplings):
     "Calculates the free energy for a given combination of quoefficients and order parameters (q+,q-,epsilon)"
     #Params is a numpy array of length n*len(variables), with n the highest power to include
@@ -61,6 +60,25 @@ def GenParams(vec,model="2t44"):
         params[3,1] = 0.5*vec[7]
         return params,couplings
 
+def FreeEnergyDeriv (params, variables, couplings, index=0,verbose=False):
+    params2=np.zeros_like(params)
+    params2[index,:-1] = params[index,1:]*np.arange(2, params.shape[1] +1)
+    #params2[index,-1] = 0
+    couplings2=[]
+    for i in  range(0,len(couplings)):
+        if couplings[i][index + 1] !=0:
+            couplings2.append(couplings[i].copy())
+            couplings2[len(couplings2)-1][0] *= couplings[i][index+1]
+            couplings2[len(couplings2)-1][index+1] -=1
+    if verbose:
+        print("params, couplings for variable ", index)
+        print(params)
+        print(couplings)
+        print("deriv params, couplings:")
+        print(params2)
+        print(couplings2)
+    return FreeEnergy(params2[:,:-1], variables, np.array(couplings2))
+
 def MinimizeEnergy(params,variables,couplings, mask=None, maxchange=1000, cycles=1000, delta=1e-12,initial_step= 1, verbose=False, warnings=True):
     "Find the values for variables that minimize FreeEnergy for a system with fixed params and couplings"
     "Optionally, a mask can be specified to fix which variables are minimized (1) or not (0)."
@@ -92,7 +110,11 @@ def MinimizeEnergy(params,variables,couplings, mask=None, maxchange=1000, cycles
         for i in range(0,len(mask)):
             if mask[i] == True:
                 delta_arr[index] = delta #This implementation makes it easier to specify the derivative without modifying variables
-                gradient[index] = (FreeEnergy(params, variables+delta_arr, couplings) - FreeEnergy(params, variables-delta_arr, couplings))/(2*delta) #Central difference
+                gradient[index] = FreeEnergyDeriv(params, variables, couplings,i,verbose=False) #Check new derivative implementation
+                if verbose:
+                    print("polynomial derivative: ", gradient[index])
+                    print("central difference: ", 
+                          (FreeEnergy(params, variables+delta_arr, couplings) -FreeEnergy(params, variables, couplings))/delta)
                 delta_arr[index]=0 #Reset delta
             index = index+1 #Go to the next position, no matter if gradient was calculated or not
         if verbose:
@@ -101,6 +123,8 @@ def MinimizeEnergy(params,variables,couplings, mask=None, maxchange=1000, cycles
         step=min(initial_step,step/(beta**5)) #Go back 5 steps, unless this would cause step to be greater than 1
         if verbose:
             print("RHS of step inequality: ", FreeEnergy(params, variables - gradient, couplings))
+            print("LHS of step inequality: ", FreeEnergy(params, variables - step*gradient*beta, couplings ))
+            print("step, gradient = ", step, gradient)
         step_cycles=0
         while  FreeEnergy(params, variables-step*gradient, couplings) > FreeEnergy(params, variables - step*gradient*beta, couplings):
             step=step*beta
@@ -145,10 +169,10 @@ def MinimizeEnergy(params,variables,couplings, mask=None, maxchange=1000, cycles
         if verbose:
             print("Change magnitude: ", mag)
             print("Free energy after update: ", FreeEnergy(params, variables, couplings))
-
+        #Halting conditions
         #1. Derivative along all variables is below delta
         #2. Change in FreeEnergy is below delta
-        if(np.abs(gradient) < delta).all(): #or  (np.abs(FreeEnergy(params, variables+step*gradient,couplings) - FreeEnergy(params, variables, couplings)) < delta):
+        if(np.abs(gradient)*step < delta).all() and  (np.abs(FreeEnergy(params, variables+step*gradient,couplings) - FreeEnergy(params, variables, couplings)) < delta):
            #Try just one condition to improve sensibility and stability
             if verbose:
                 print("Halting condition reached: all derivatives or FreeEnergy change below delta")
@@ -158,15 +182,14 @@ def MinimizeEnergy(params,variables,couplings, mask=None, maxchange=1000, cycles
 
 
 
-def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-4):
+def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-3,verbose=False,return_data=False):
     "Performs one iteration of the Gauss-Newton algorithm on the data provided, given the model."
     "The minimized function is the sum of square residuals. It is assumed that T is the only independent variable"
     "vec is the list of model quoefficients, as expected by GenParams."
     "merged is the numpy array of merged observations, with columns: T, epsilon, q+, q-"
-    "unmerged is an array of length 3 which contains np arrays of: unmerged T observations, unmerged q+ observations and unmerged q- observations"
+    "unmerged is an array of length 3 which contains np arrays of: unmerged epsilon observations, unmerged q+ observations and unmerged q- observations"
     "mask is a vector with the same length as vec: if mask[i] = 1, the i-th parameter is refined against. If no mask is specified, refine all but the first one"
     #Generate mask if none is provided
-    fig,ax=plt.subplots(3)
     if mask is None:
         mask=np.ones_like(vec,dtype=bool)
         mask[0] = False
@@ -176,19 +199,29 @@ def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-4):
         mask = mask.astype(bool)
     #Calculate residuals
     params, couplings= GenParams(vec,model)
-    base_merged = np.zeros_like(merged)
-    base_unmerged=[np.zeros_like(unmerged[0]),np.zeros_like(unmerged[1]),np.zeros_like(unmerged[2])]
-    #print(merged)
+    
+    
+    observation_mask=np.ones_like(merged,dtype=bool) #Defines which entries are reliable data
+    #Add unmerged data while indicating that some entries are untrustworthy
+    for i in range(0,3):
+        if len(unmerged[i])!=0:
+            prov = np.pad(unmerged[i],((0,0),(0,2)),'constant',constant_value=0) #add column
+            prov[:,i+1] = prov[:,1]
+            mask_prov=np.zeros_like(prov,dtype=bool)
+            mask_prov[:,0] = 1
+            mask_prov[:,i+1] =1
+            merged = np.vstack([merged,prov])
+            observation_mask = np.vstack([observation_mask,mask_prov])
+            
+        base_merged = np.zeros_like(merged)    
     for i in range(0,len(merged)):
         noise_mult =1 + 0.25*np.random.normal(0.0,1.0,4)
         noise_mult[2]=1
         status, prov = MinimizeEnergy(params,
                                            merged[i,[2,3,0,1]]* noise_mult, #Start near observations to guarantee convergence to positive solutions, and add gaussian noise to reduce bias
-                                           couplings,mask=np.array([1,1,0,1]),warnings=False,delta=1e-14)
-        #Note: warnings is off but if status is not 0, the datum is not considered
-        #if status==0:
+                                           couplings,mask=np.array([1,1,0,1]),warnings=False,delta=1e-8,cycles=2000,maxchange=np.inf)
         base_merged[i]=prov
-        #print(100*i/len(merged),"% complete" )
+    
     base_merged=base_merged[:,[2,3,0,1]]
     #choose the positive solution for q+-
     base_merged[:,[2,3]] = np.abs(base_merged[:,[2,3]])
@@ -211,7 +244,7 @@ def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-4):
             for j in range(0,len(merged)):
                 status, prov = MinimizeEnergy(params,
                                                merged[j,[2,3,0,1]]*noise_mult, #Start near observations to guarantee convergence to positive solutions, and add gaussian noise to reduce bias
-                                               couplings,mask=np.array([1,1,0,1]),initial_step=1000*delta,warnings=False,delta=1e-13)
+                                               couplings,mask=np.array([1,1,0,1]),initial_step=1,warnings=False,delta=1e-8,maxchange=np.inf)
                 #if status==0:
                 current_deriv[j] = prov
             current_deriv=current_deriv[:,[2,3,0,1]]
@@ -223,8 +256,10 @@ def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-4):
             
             #print(derivatives_merged[i])
     residuals_merged = merged - base_merged
+    residuals_merged[np.where(observation_mask ==0)] = 0
     res2 = np.sum(residuals_merged**2)
-    print("r^2", 1 - res2/np.sum(merged[:,1:]**2) ) 
+    r2 = 1 - res2/np.sum(merged[:,1:]**2,where=observation_mask[:,1:])
+    print("r^2", r2)  
     #Observations are q+, q-, epsilon. This sums delta(q+) * d(q+)/d(param) + delta(q-) *d(q-)/d(param) + delta(epsilon)/d(epsilon), thus minimizing delta(q+)^2 + delta(q-)^2 + delta(epsilon)^2
     vec_Gauss=np.zeros(np.sum(mask))
     mat_Gauss=np.zeros((np.sum(mask),np.sum(mask)))
@@ -240,24 +275,23 @@ def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-4):
                     mat_Gauss[iindex,jindex] = np.sum(derivatives_merged[i]*derivatives_merged[j])
                     jindex +=1
             iindex+=1
-    #print(vec_Gauss)
-    #print(mat_Gauss)
+    #Build unmerged matrix
+    #for i in unmerged:
+        
+    
+    
     x= np.linalg.solve(mat_Gauss, vec_Gauss)
     print(x)
     #Rebuild vector with zeroes in non updated positions
+    n_obs = np.sum(observation_mask) - observation_mask.shape[0] 
     res=np.zeros_like(vec)
     index=0
     for i in range(0,len(vec)):
         if mask[i]:
             res[i] = x[index]
             index+=1
-    for i in range(0,3):
-        ax[i].plot(merged[:,0],merged[:,i+1],color="black")
-        ax[i].plot(base_merged[:,0], base_merged[:,i+1],color="red")
-    fig2, ax2=plt.subplots(3)
-    labels=["a+","T+","b+","a-","T-","b-","c","ep", "la+","la-"]
-    for i in range(0,3):
-        for j in range(0,len(derivatives_merged)):
-            ax2[i].plot(merged[:,0], derivatives_merged[j][:,i])
-    plt.show()
+    print("standard deviations: ")
+    print(np.diagonal(res2 * np.linalg.inv(mat_Gauss)/(2*n_obs))**0.5)
+    if return_data: #return r2, simulated data and covariance matrix
+        return [res, r2, base_merged, res2 * np.linalg.inv(mat_Gauss)/2]
     return res
