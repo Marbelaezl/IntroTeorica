@@ -2,7 +2,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-
+os.chdir("./preprocessed")
 #Compounds included in the analysis for which data was obtained from graphs
 names_graphs=["Ba2Bi2O6","Ba2BiSbO6","La2CoMnO6","Sr2CrSbO6",
              # "fake_dir_test",
@@ -350,17 +350,18 @@ for i in range(0,len(breakpoints_q)):
     np.savetxt(fname+"-unmerged_T.txt", np.array(result[1][2])[np.where(np.array(result[1][2])[:,0] != np.inf)],fmt='%2.6f', header="T(K) V(AA^3)")
     #3 data sources have more than one unmerged observation
     if len(np.array(result[1][1])!=0):
-        np.savetxt(fname+"-unmerged_q.txt", np.array(result[1][1])[np.where(np.array(result[1][1])[:,0] != np.inf)],fmt='%2.6f', header="T(K) q(AA)")
+         np.savetxt(fname+"-unmerged_q.txt", np.array(result[1][1])[np.where(np.array(result[1][1])[:,0] != np.inf)],fmt='%2.6f', header="T(K) q(AA)")
 data_table = np.genfromtxt("./"+names_tables[0]+"/"+names_tables[0]+".csv",delimiter=" ") #not a real csv :/
 data_table[:,1] = data_table[:,1]*data_table[:,2] *data_table[:,3]/2
 data_table[[0,1],1] *= 0.5
 data_table[:,2] = np.sin(data_table[:,4]*np.pi/180)* 2.119
 data_table[:,3] = np.sin(data_table[:,5]*np.pi/180)* 2.119
 dirname = "../processed/" + names_tables[0]
+print(data_table)
 Path(dirname).mkdir(parents=True, exist_ok=True)
 print("Writing processed data in directory", dirname)
 fname=dirname+"/"+names_tables[0]
-np.savetxt(fname+"-merged.txt", result[0],fmt='%4.6f', header="T(K) V(AA^3) q1(AA) q2(AA)")
+np.savetxt(fname+"-merged.txt", data_table[:,:4],fmt='%4.6f', header="T(K) V(AA^3) q1(AA) q2(AA)")
 print("All data processed successfully")
     
     
