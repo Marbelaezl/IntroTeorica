@@ -1,0 +1,6 @@
+AMPLIMODES for experimental Sr2InTaO6 (Bilbao Crystallographic Server)
+K-vector	Irrep	Direction	Isotropy Subgroup	Dimension	Amplitude (Å)
+(0,0,0)	GM1+	(a)	Fm-3m (225)	1	0.0154
+(0,0,0)	GM3+	(a,0)	I4/mmm (139)	1	0.1199
+(0,0,0)	GM4+	(0,0,a)	I4/m (87)	1	0.4689
+
