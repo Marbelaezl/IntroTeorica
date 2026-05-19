@@ -17,9 +17,6 @@ Wallace2013: A variable temperature synchrotron X-ray diffraction study of the f
 Faik2009: Crystal structures and phase transitions of Sr2CrSbO6
 Author links open overlay panel A. Faik, J.M. Igartua, M. Gateshki, G.J. Cuello. J. Sol. State Chem. 182-7 (2009), 171-1725
 
-Varios: revisa tus descargasº
-
-
 
 Para después:
 Octahedral tilting dominated phase transition in compressed double perovskite Ba2SmBiO6 (Wang 2021)
