@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def FreeEnergy(params,variables,couplings):
     "Calculates the free energy for a given combination of quoefficients and order parameters (q+,q-,epsilon)"
     #Params is a numpy array of length n*len(variables), with n the highest power to include
@@ -9,7 +10,8 @@ def FreeEnergy(params,variables,couplings):
     res=0
     #Check that parameters have been passed appropriately
     try:
-        assert (len(params) == len(variables))
+        for i in range(0,len(params)):
+            assert (len(params) == len(variables))
     except:
         print("Error in FreeEnergyTwoTilt: argument mismatch between params (length ", str(len(params)), ") and variables (length ", str(len(variables)),")")
         return np.inf
@@ -30,7 +32,8 @@ def GenParams(vec,model="2t44"):
     "Generates the parameter matrix as required for FreeEnergy according to the quoefficient vector vec"
     "and the model. Valid models are:"
     "'2t44' (2tilt-4th order + temperature & deformation)"
-    options=["2t44"]
+    "'2t66p' (2-tilt-6th order + temperature, deformation & pressure)"
+    options=["2t44","2t66p"]
     if model not in options:
         print("Error in GenParams: invalid model '", model, "'. Valid models are: ", options)
         raise ValueError
@@ -58,6 +61,34 @@ def GenParams(vec,model="2t44"):
         couplings[4] = np.array([vec[9],0,2,0,1]) #lambda- epsilon q-^2
     #Elastic deformation 1/2k epsilon^2
         params[3,1] = 0.5*vec[7]
+        return params,couplings
+    elif model=="2t66p":
+        try:
+            assert(len(vec)==13)
+        except:
+            print("Error in GenParams: number of entries in vec (", len(vec), "does not match model '2t66p' (length 13 required)")
+            raise ValueError
+    #model parameters (13): a+, T+, b+, a-, T-, b-, c, k, lambda+, lambda-, d+,d-, kp
+    # 4 lines (q+,q-,T,epsilon,P) and 6 columns (maximum order 6)
+        params=np.zeros((5,6))
+    # 6 couplings: a+T+q+^2, a-T-q-^2, cq+^2q-^2, lambda+epq+^2, lambda-epq-^2, -kp*P*epsilon
+        couplings=np.zeros((6,6))
+    #terms related to in-phase tilts
+        params[0,1]= -vec[0]*vec[1] #-a+T+q+^2
+        params[0,3]= vec[2] #bq+^4
+        params[0,5] = vec[10] #dq+^6
+        couplings[0] = np.array([vec[6],2,2,0,0,0]) #cq+^2q-^2
+        couplings[1] =np.array([vec[0],2,0,1,0,0]) #aTq+^2
+        couplings[2] =np.array([vec[8],2,0,0,1,0]) #lambda+ epsilon q+^2
+    #terms related to out-of-phase tilts
+        params[1,1]= -vec[3]*vec[4] #-a-T-q-^2
+        params[1,3]= vec[5] #bq-^4
+        params[1,5] = vec[11]#d-^6
+        couplings[3] = np.array([vec[3],0,2,1,0,0]) #aTq-^2
+        couplings[4] = np.array([vec[9],0,2,0,1,0]) #lambda- epsilon q-^2
+    #Elastic deformation 1/2k epsilon^2
+        params[3,1] = 0.5*vec[7]
+        couplings[5] = np.array([vec[12],0,0,0,1,1])
         return params,couplings
 
 def FreeEnergyDeriv (params, variables, couplings, index=0,verbose=False):
@@ -190,6 +221,12 @@ def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-3,ve
     "unmerged is an array of length 3 which contains np arrays of: unmerged epsilon observations, unmerged q+ observations and unmerged q- observations"
     "mask is a vector with the same length as vec: if mask[i] = 1, the i-th parameter is refined against. If no mask is specified, refine all but the first one"
     #Generate mask if none is provided
+    if model=="2t44":
+        permutation=[2,3,0,1]
+        nvars=4
+    else:
+        permutation=[2,3,0,1,4]
+        nvars=5
     if mask is None:
         mask=np.ones_like(vec,dtype=bool)
         mask[0] = False
@@ -201,28 +238,45 @@ def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-3,ve
     params, couplings= GenParams(vec,model)
     
     
-    observation_mask=np.ones_like(merged,dtype=bool) #Defines which entries are reliable data
+    weights=np.ones_like(merged) #Defines which entries are reliable data
     #Add unmerged data while indicating that some entries are untrustworthy
     for i in range(0,3):
         if len(unmerged[i])!=0:
-            prov = np.pad(unmerged[i],((0,0),(0,2)),'constant',constant_value=0) #add column
+            prov = np.pad(unmerged[i],((0,0),(0,2)),'constant',constant_values=0) #add column
             prov[:,i+1] = prov[:,1]
-            mask_prov=np.zeros_like(prov,dtype=bool)
-            mask_prov[:,0] = 1
-            mask_prov[:,i+1] =1
+            weights_prov=np.zeros_like(prov)
+            weights_prov[:,0] = 1
+            weights_prov[:,i+1] =1
             merged = np.vstack([merged,prov])
-            observation_mask = np.vstack([observation_mask,mask_prov])
+            weights = np.vstack([weights,weights_prov])
             
         base_merged = np.zeros_like(merged)    
     for i in range(0,len(merged)):
-        noise_mult =1 + 0.25*np.random.normal(0.0,1.0,4)
+        noise_mult =1 + 0.25*np.random.normal(0.0,1.0,nvars)
         noise_mult[2]=1
+        noise_sum = np.random.rand(nvars)*0.2 * np.average(merged,axis=1)[permutation]
         status, prov = MinimizeEnergy(params,
-                                           merged[i,[2,3,0,1]]* noise_mult, #Start near observations to guarantee convergence to positive solutions, and add gaussian noise to reduce bias
-                                           couplings,mask=np.array([1,1,0,1]),warnings=False,delta=1e-8,cycles=2000,maxchange=np.inf)
+                                           merged[i,permutation]* noise_mult+noise_sum, #Start near observations to guarantee convergence to positive solutions, and add gaussian noise to reduce bias
+                                           couplings,mask=np.array([1,1,0,1]),warnings=False,delta=1e-8,cycles=2000,maxchange=10**9)
         base_merged[i]=prov
-    
-    base_merged=base_merged[:,[2,3,0,1]]
+    for i in range(0,weights.shape[1]):
+        try:
+            #Weigh data of different scales fairly
+            weights[:,i] = weights[:,i] /np.average(np.abs(merged[:,i]),weights=weights[:,i]*(merged[:,i]!=0))
+        except: #Do not refine over non-existent (all-zero) observations
+            weights[:,i]=0
+        #Weigh order parameter observation higher near their respective transition
+        #Constant until reaching 1/T_cut from the transition, then falls as 1/T
+        # if model == "2t44":
+        #     T_cut=250
+        #     weights[:,2] = weights[:,2]* np.minimum(np.ones_like(merged[:,0])/T_cut, (np.abs(1/(merged[:,0]-vec[1]))))/ np.average(np.minimum(0.01*np.ones_like(merged[:,0]), (np.abs(1/(merged[:,0]-vec[1])))))
+        #     weights[:,3] = weights[:,3]* np.minimum(np.ones_like(merged[:,0])/T_cut, (np.abs(1/(merged[:,0]-vec[4]))))/np.average(np.minimum(0.01*np.ones_like(merged[:,0]), (np.abs(1/(merged[:,0]-vec[4])))))
+        #     #weights[:,4]=0
+        #     #Make sure that no individual observation has more than 5% of the weight on it
+        #     weights[:,1:-1] =np.minimum(weights[:,1:-1] , 0.05*np.ones_like(weights[:,1:-1] ))
+        #     #weights[:,1:-1] = weights[:,1:-1]/np.sum(weights[:,1:-1])
+        #     #print(weights)
+    base_merged=base_merged[:,permutation]
     #choose the positive solution for q+-
     base_merged[:,[2,3]] = np.abs(base_merged[:,[2,3]])
     #print(base_merged)
@@ -238,32 +292,30 @@ def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-3,ve
             derivatives_merged.append(np.zeros_like(merged))
         else:
             deltav[i] =delta
-            params, couplings = GenParams(vec+deltav)
-            noise_mult =1 + 0.25*np.random.normal(0.0,1.0,4)
+            params, couplings = GenParams(vec+deltav,model=model)
+            noise_mult =1 + 0.25*np.random.normal(0.0,1.0,nvars)
             noise_mult[2]=1
+            noise_sum = np.random.rand(nvars)*0.2 * np.average(merged,axis=1)[permutation]
             for j in range(0,len(merged)):
                 status, prov = MinimizeEnergy(params,
-                                               merged[j,[2,3,0,1]]*noise_mult, #Start near observations to guarantee convergence to positive solutions, and add gaussian noise to reduce bias
-                                               couplings,mask=np.array([1,1,0,1]),initial_step=1,warnings=False,delta=1e-8,maxchange=np.inf)
+                                               merged[j,permutation]*noise_mult+noise_sum, #Start near observations to guarantee convergence to positive solutions, and add gaussian noise to reduce bias
+                                               couplings,mask=np.array([1,1,0,1]),initial_step=1,warnings=False,delta=1e-8,maxchange=10**9,verbose=False)
                 #if status==0:
                 current_deriv[j] = prov
-            current_deriv=current_deriv[:,[2,3,0,1]]
+            current_deriv=current_deriv[:,permutation]*weights
             current_deriv[:,[2,3]] = np.abs(current_deriv[:,[2,3]])
-            derivatives_merged.append((current_deriv-base_merged)/delta)
-            
-            
+            derivatives_merged.append((current_deriv-base_merged*weights)/delta)
             deltav[i] = 0
             
             #print(derivatives_merged[i])
-    residuals_merged = merged - base_merged
-    residuals_merged[np.where(observation_mask ==0)] = 0
-    res2 = np.sum(residuals_merged**2)
-    r2 = 1 - res2/np.sum(merged[:,1:]**2,where=observation_mask[:,1:])
+    residuals_merged = (merged - base_merged)*weights
+    #R2 is calculated without consideration for weights
+    res2 = np.sum((merged - base_merged)[:,1:-1]**2)
+    r2 = 1 - res2/np.sum(merged[:,1:-1]**2)
     print("r^2", r2)  
     #Observations are q+, q-, epsilon. This sums delta(q+) * d(q+)/d(param) + delta(q-) *d(q-)/d(param) + delta(epsilon)/d(epsilon), thus minimizing delta(q+)^2 + delta(q-)^2 + delta(epsilon)^2
     vec_Gauss=np.zeros(np.sum(mask))
     mat_Gauss=np.zeros((np.sum(mask),np.sum(mask)))
-    #Check logic for non consideration of
     iindex=0
     jindex=0
     for i in range(0,len(vec)):
@@ -274,16 +326,16 @@ def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-3,ve
                 if mask[j]:
                     mat_Gauss[iindex,jindex] = np.sum(derivatives_merged[i]*derivatives_merged[j])
                     jindex +=1
+                   
             iindex+=1
     #Build unmerged matrix
     #for i in unmerged:
-        
-    
-    
     x= np.linalg.solve(mat_Gauss, vec_Gauss)
-    print(x)
+
     #Rebuild vector with zeroes in non updated positions
-    n_obs = np.sum(observation_mask) - observation_mask.shape[0] 
+    n_obs = np.sum(weights[:,1:-1]!=0)
+    print("nobs = ", n_obs)
+    print("Sum of weights: ", np.sum(weights[:,1:-1]))
     res=np.zeros_like(vec)
     index=0
     for i in range(0,len(vec)):
@@ -291,7 +343,7 @@ def GaussNewtonIter (vec, merged, unmerged, model="2t44",mask=None,delta=1e-3,ve
             res[i] = x[index]
             index+=1
     print("standard deviations: ")
-    print(np.diagonal(res2 * np.linalg.inv(mat_Gauss)/(2*n_obs))**0.5)
+    print(np.diagonal(res2/(np.sum(weights[:,1:-1])) * np.linalg.inv(mat_Gauss)/(2))**0.5)
     if return_data: #return r2, simulated data and covariance matrix
-        return [res, r2, base_merged, res2 * np.linalg.inv(mat_Gauss)/2]
+        return [res, r2, base_merged, res2/n_obs * np.linalg.inv(2*mat_Gauss)/np.sum(weights[:,1:-1])**2]
     return res
