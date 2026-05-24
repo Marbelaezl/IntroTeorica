@@ -7,7 +7,7 @@ import matplotlib as mpl
 #ignore divide by zero and NaN, as these are expected for missing data
 np.seterr(divide='ignore')
 np.seterr(invalid='ignore')
-mpl.rcParams.update({'font.size': 13})
+mpl.rcParams.update({'font.size': 14})
 os.chdir("./results/")
 data=np.genfromtxt("merged-results.txt")
 uncert=np.genfromtxt("uncertainties.txt")
@@ -154,25 +154,26 @@ for i in range(0,len(variables)):
     std_corr = (1-corr_current[0]**2)/np.sqrt(corr_current[1]-1)
     p_value = stats.t.sf(np.abs(corr_current[0]/std_corr), corr_current[1]-1)
     print("P_value: ", p_value)
-    if p_value < 0.05:
+    if p_value < 0.005:
         correlations.append(True)
     else:
         correlations.append(False)
     corrs.append(corr_current[0])
     pvals.append(p_value)
         
+fig,ax=plt.subplots()
 
 for i in range(0, len(variables)):
     if correlations[i]:
 
-        fig,ax=plt.subplots()
+        
         error=delta_variables[i]
-       
+        fig,ax=plt.subplots()
         ax.errorbar(tolerances, variables[i],yerr=np.abs(error),linestyle="",label=labels[i],color="black",capsize=2,markersize=2,marker="s")
         ax.legend()
         ax.set_xlabel("Goldschmidt tolerance ratio")
         text="r = " + str(round(corrs[i],3)) + ", p = " + str(round(pvals[i],5)) 
-        ax.text(x=0.93, y=np.min(variables[i][np.where(IsValid(variables[i]))])*0.9, s=text )
+        #ax.text(x=0.93, y=np.min(variables[i][np.where(IsValid(variables[i]))])*0.9, s=text )
 #Go back to usual behaviour
 np.seterr(divide='warn')
 np.seterr(invalid='warn')
