@@ -173,7 +173,44 @@ for i in range(0, len(variables)):
         ax.legend()
         ax.set_xlabel("Goldschmidt tolerance ratio")
         text="r = " + str(round(corrs[i],3)) + ", p = " + str(round(pvals[i],5)) 
-        #ax.text(x=0.93, y=np.min(variables[i][np.where(IsValid(variables[i]))])*0.9, s=text )
+        ax.text(x=0.93, y=np.min(variables[i][np.where(IsValid(variables[i]))]), s=text )
 #Go back to usual behaviour
 np.seterr(divide='warn')
 np.seterr(invalid='warn')
+temps=np.genfromtxt("T_shift.txt")
+names_graphs=["$BaBiO_3$","$Ba_2BiSbO_6$","$Ba_2GdMoO_6$","$La_2CoMnO_6$","$Sr_2CrSbO_6$",
+              "$Sr_2CuWO_6$","$Sr_2InTaO_6$","$Sr2NiMoO_6$","$Sr_2ScSbO_6$"]
+#Compounds included in the analysis for which data was obtained from tables
+fig1,ax1=plt.subplots(figsize=(12,6))
+fig2,ax2=plt.subplots(figsize=(12,6))
+ticks1=[[],[]]
+ticks2=[[],[]]
+currents=[0,0]
+for i in range(0,int(len(names_graphs)-1)):
+    if temps[2*i,0]!=0:
+        ax1.errorbar(temps[2*i,0],currents[0],xerr=temps[2*i,1],color="black",marker="^",capsize=4,markersize=10)
+        ax1.errorbar(temps[2*i,2],currents[0],xerr=temps[2*i,3],color="blue",marker="s",capsize=2)
+        ax1.errorbar(temps[2*i,4],currents[0],xerr=temps[2*i,5],color="red",marker="o",capsize=2)
+        ticks1[0].append(currents[0])
+        ticks1[1].append(names_graphs[currents[0]])
+        currents[0] +=1
+    if temps[2*i+1,0]!=0:
+         ax2.errorbar(temps[2*i+1,0],currents[1],xerr=temps[2*i+1,1],color="black",marker="^",capsize=4,markersize=10)
+         ax2.errorbar(temps[2*i+1,2],currents[1],xerr=temps[2*i+1,3],color="blue",marker="s",capsize=2)
+         ax2.errorbar(temps[2*i+1,4],currents[1],xerr=temps[2*i+1,5],color="red",marker="o",capsize=2)
+         ticks2[0].append(currents[1])
+         ticks2[1].append(names_graphs[currents[1]])
+         currents[1] +=1
+ax1.set_yticks(ticks1[0],ticks1[1])
+ax2.set_yticks(ticks2[0],ticks2[1])
+ax1.errorbar([],[],color="black",label="Literature",marker="^")
+ax1.errorbar([],[],color="blue",label="Biased estimation",marker="s",capsize=2)
+ax1.errorbar([],[],color="red",label="Unbiased estimation",marker="o",capsize=2)
+
+ax2.errorbar([],[],color="black",label="Literature",marker="^",capsize=4)
+ax2.errorbar([],[],color="blue",label="Biased estimation",marker="s",capsize=2)
+ax2.errorbar([],[],color="red",label="Unbiased estimation",marker="o",capsize=2)
+ax1.legend()
+ax2.legend()
+ax1.set_xlabel("$T_+$ (K)")
+ax2.set_xlabel("$T_-$ (K)")
